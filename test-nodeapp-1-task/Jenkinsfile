@@ -44,7 +44,7 @@ pipeline {
                 sh '''
 ssh -o StrictHostKeyChecking=no \
 -i ~/.ssh/jenkins_app_key \
-root@$APP_HOST <<'EOF'
+ubuntu@$APP_HOST <<'EOF'
 
 if docker ps -a --format '{{.Names}}' | grep -w node_app; then
     docker stop node_app
