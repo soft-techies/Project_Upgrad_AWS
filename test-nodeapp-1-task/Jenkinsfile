@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'DOCKER_IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
+        string(name: 'APP_HOST', defaultValue: '10.200.4.104', description: 'App host private IP')
+    }
+
+    environment {
+        ECR_REGISTRY = "751146247530.dkr.ecr.us-east-1.amazonaws.com"
+        ECR_REPO     = "node_app"
+        CONTAINER_NAME = "node_app_container"
+    }
+
+    stages {
+
+        stage('Git Checkout Source Code') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/soft-techies/Project_Upgrad_AWS.git'
+            }
+        }
+
+        stage('Build & Push Docker Image to ECR') {
+            steps {
+                sh '''
+                docker build -t $ECR_REPO:$IMAGE_TAG .
+
+                docker tag $ECR_REPO:$IMAGE_TAG \
+                $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+
+                docker push $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Deploy to App Host') {
+            steps {
+                sh '''
+                ssh -o StrictHostKeyChecking=no \
+                -i ~/.ssh/jenkins_app_key \
+                ubuntu@$APP_HOST << EOF
+
+                if docker ps -a --format '{{.Names}}' | grep -w $CONTAINER_NAME; then
+                    docker stop $CONTAINER_NAME
+                    docker rm $CONTAINER_NAME
+                fi
+
+                docker pull $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+
+                docker run -d \
+                  --name $CONTAINER_NAME \
+                  -p 8081:8081 \
+                  $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+                EOF
+                '''
+            }
+        }
+    }
+}
