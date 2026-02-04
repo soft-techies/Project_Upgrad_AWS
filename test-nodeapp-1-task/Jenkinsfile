@@ -1,34 +1,39 @@
 pipeline {
     agent any
 
-    parameters {
-        string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
-        string(name: 'APP_HOST', defaultValue: '10.200.4.104', description: 'App host private IP')
-    }
-
     environment {
-        ECR_REGISTRY = "751146247530.dkr.ecr.us-east-1.amazonaws.com"
-        ECR_REPO     = "node_app"
-        CONTAINER_NAME = "node_app_container"
+        AWS_REGION     = 'us-east-1'
+        ECR_REGISTRY   = '751146247530.dkr.ecr.us-east-1.amazonaws.com'
+        ECR_REPO       = 'node_app'
+        IMAGE_TAG      = 'latest'
+        IMAGE_NAME     = 'node_app'
+        CONTAINER_NAME = 'node_app'
+        APP_HOST       = '10.200.4.104'
+        APP_DIR        = 'test-nodeapp-1-task'
     }
 
     stages {
 
-        stage('Git Checkout Source Code') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/soft-techies/Project_Upgrad_AWS.git'
             }
         }
 
-        stage('Build & Push Docker Image to ECR') {
+        stage('Build Docker Image') {
             steps {
                 sh '''
-                docker build -t $ECR_REPO:$IMAGE_TAG test-nodeapp-1-task
+                cd $APP_DIR
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                '''
+            }
+        }
 
-                docker tag $ECR_REPO:$IMAGE_TAG \
-                $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-
+        stage('Tag & Push Image to ECR') {
+            steps {
+                sh '''
+                docker tag $IMAGE_NAME:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
                 docker push $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
                 '''
             }
@@ -37,23 +42,24 @@ pipeline {
         stage('Deploy to App Host') {
             steps {
                 sh '''
-                ssh -o StrictHostKeyChecking=no \
-                -i ~/.ssh/jenkins_app_key \
-                ubuntu@$APP_HOST << EOF
+ssh -o StrictHostKeyChecking=no \
+-i ~/.ssh/jenkins_app_key \
+root@$APP_HOST <<'EOF'
 
-                if docker ps -a --format '{{.Names}}' | grep -w $CONTAINER_NAME; then
-                    docker stop $CONTAINER_NAME
-                    docker rm $CONTAINER_NAME
-                fi
+if docker ps -a --format '{{.Names}}' | grep -w node_app; then
+    docker stop node_app
+    docker rm node_app
+fi
 
-                docker pull $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
+docker pull 751146247530.dkr.ecr.us-east-1.amazonaws.com/node_app:latest
 
-                docker run -d \
-                  --name $CONTAINER_NAME \
-                  -p 8081:8081 \
-                  $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
-                EOF
-                '''
+docker run -d \
+  --name node_app \
+  -p 8081:8081 \
+  751146247530.dkr.ecr.us-east-1.amazonaws.com/node_app:latest
+
+EOF
+'''
             }
         }
     }
