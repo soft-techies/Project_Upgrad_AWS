@@ -24,7 +24,7 @@ pipeline {
         stage('Build & Push Docker Image to ECR') {
             steps {
                 sh '''
-                docker build -t $ECR_REPO:$IMAGE_TAG .
+                docker build -t $ECR_REPO:$IMAGE_TAG test-nodeapp-1-task
 
                 docker tag $ECR_REPO:$IMAGE_TAG \
                 $ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG
